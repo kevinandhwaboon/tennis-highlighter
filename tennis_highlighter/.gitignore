@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Videos and outputs
+*.mov
+*.MOV
+*.mp4
+*.MP4
+*.wav
+output/
+*_highlights/
+
+# Data and models
+data/
+*.pt
+*.pth
+*.onnx
+
+# Mac
+.DS_Store
+.gradio/
