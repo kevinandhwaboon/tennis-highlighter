@@ -4,7 +4,7 @@
 
 ## Roadmap
 - **v1 (done):** cut dead time. Audio-only: racket "pop" in the 1.5–6 kHz band → onset peaks (>6× median) → hits <4.5 s apart grouped into a point (2+ hits) → 2 s padding → ffmpeg clips + highlight reel. No training.
-- **v2 (next):** stroke type (forehand/backhand/serve/volley/overhead, plus not-a-hit) from YOLO-pose sequences around each detected hit. Gradio labelling tool, then a small classifier trained in Colab on a few hundred labelled hits.
+- **v2 (in progress, labelling tool built):** stroke type (forehand/backhand/serve/volley/overhead, plus not-a-hit) from YOLO-pose sequences around each detected hit. Gradio labelling tool, then a small classifier trained in Colab on a few hundred labelled hits.
 - **v3:** ball tracking (TrackNet fine-tune) + in/out calls with "clear / too close" confidence. Needs an elevated camera behind the baseline that shows the court lines.
 
 ## Findings from sample (trimmed.mov, 2:08)

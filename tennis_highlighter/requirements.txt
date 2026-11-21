@@ -2,3 +2,4 @@ numpy
 scipy
 librosa
 gradio
+ultralytics   # v2: YOLO pose (pulls in torch + opencv, CPU is fine)

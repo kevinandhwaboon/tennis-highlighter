@@ -15,8 +15,20 @@ MIN_HITS = 2            # a point needs at least this many hits
 PAD_BEFORE = 2.0        # s of lead-in before first hit (serve toss)
 PAD_AFTER = 2.0         # s after last hit (ball lands / point ends)
 
+# ---- v2: stroke labelling (used by poses.py / strokes.py / label_app.py) ----
+POSE_MODEL = "yolo11n-pose.pt"  # smallest Ultralytics pose model, auto-downloads (~6 MB)
+CLIP_BEFORE = 1.5       # s of video before each hit in the labelling clip (serve toss)
+CLIP_AFTER = 1.0        # s after
+CLIP_WIDTH = 640        # px, clips + pose inference run at this width (CPU budget)
+POSE_FRAME_STEP = 2     # run pose on every Nth frame (30 fps -> 15 pose fps)
+POSE_WINDOW = 1.0       # s either side of the hit used for the classifier input
+MAX_PEOPLE = 4          # keep up to this many people per frame (largest boxes)
+NEAR_STRENGTH = 9.0     # audio peak >= this (x median) -> guess near player hit it
 
-def detect_hits(video):
+
+def detect_hits(video, return_strength=False):
+    """Return (hit_times, duration). With return_strength=True, return
+    (hit_times, strengths, duration), strength = peak height in x median."""
     with tempfile.TemporaryDirectory() as td:
         wav = os.path.join(td, "a.wav")
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", video, "-vn", "-ac", "1",
@@ -26,8 +38,11 @@ def detect_hits(video):
     hop = 256
     env = librosa.onset.onset_strength(y=ss.filtfilt(b, a, y), sr=sr, hop_length=hop)
     env = env / np.median(env)
-    pk, _ = ss.find_peaks(env, height=HIT_THRESHOLD, distance=int(MIN_HIT_SPACING * sr / hop))
-    return librosa.frames_to_time(pk, sr=sr, hop_length=hop), len(y) / sr
+    pk, props = ss.find_peaks(env, height=HIT_THRESHOLD, distance=int(MIN_HIT_SPACING * sr / hop))
+    times = librosa.frames_to_time(pk, sr=sr, hop_length=hop)
+    if return_strength:
+        return times, props["peak_heights"], len(y) / sr
+    return times, len(y) / sr
 
 
 def group_points(hits, duration):

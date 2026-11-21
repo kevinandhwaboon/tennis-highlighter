@@ -16,6 +16,9 @@ Repo: https://github.com/kevinandhwaboon/tennis-highlighter
 ## Layout
 - `highlighter.py`: core pipeline plus a command-line interface (`python highlighter.py VIDEO --out DIR`)
 - `app.py`: Gradio UI wrapping highlighter.py
+- `poses.py`: v2, cuts a 640px clip around each hit and runs YOLO pose. Writes `data/<video>/` (`python poses.py VIDEO`)
+- `strokes.py`: v2, label list, hitter tracking, feature normalisation, dataset export (`python strokes.py`, which writes `data/dataset.npz`)
+- `label_app.py`: v2 Gradio labelling tool (`python label_app.py`, port 7861)
 - `docs/PLAN.md`: roadmap and findings
 
 ## v1 (done): cut dead time, audio only
@@ -28,12 +31,20 @@ Repo: https://github.com/kevinandhwaboon/tennis-highlighter
 Results on the 2:08 sample: 36 hits gave 6 points, keeping 60% of the footage. All boundaries were checked visually and are correct, with about 2 s of extra tail.
 Near-player hits peak at about 10–14× median and far-player hits at about 5–7×.
 
-## Next: v2, stroke classification
-- Run Ultralytics YOLO pose (CPU, small model) in a window of about ±1 s around each detected hit.
-- Build a labelling tool (Gradio) that shows each hit clip with buttons for
-  forehand / backhand / serve / volley / overhead / not-a-hit. Save the labels to CSV.
-- Train a small sequence classifier (1D CNN or GRU on keypoints) in Colab, then run it on CPU locally.
-- Label "not-a-hit" too, so audio false positives get filtered out.
+## v2 (in progress): stroke classification
+Labelling tool is built; next is labelling a few hundred hits, then training.
+- **Hits:** every audio hit (not only those inside points), so isolated false positives get labelled `not_a_hit`.
+- **Pose:** `yolo11n-pose` on CPU, 640px clip from 1.5 s before to 1.0 s after each hit, every 2nd frame (15 pose fps).
+  Keeps up to 4 people per frame (largest boxes) so the hitter can be re-picked later.
+- **Labels:** `data/<video>/labels.csv` with columns hit, time_s, strength, label, hitter (near/far), labelled_at. Saved after every click.
+  Labels are matched to hits by time, so changing the detection settings doesn't attach labels to the wrong hit.
+- **Hitter guess:** audio peak of 9× median or more means near player, otherwise far. The labeller corrects it with keys 1/2.
+- **Features** (`strokes.features`): follow the hitter (near = box bottom lowest in the frame at the hit, far = highest, then nearest box centre frame to frame).
+  Resample to ±1.0 s at 15 fps (31 steps). Per step, use keypoints relative to mid-hip divided by torso length, plus 17 confidences, plus hip displacement from the hit frame: 53 features in total.
+  **The far player is mirrored** (flip x and swap left/right keypoints), because they face the camera.
+  Left-handers aren't handled yet. They'll need a per-player flip.
+- **Dataset:** `data/dataset.npz` with X (N, 31, 53), y, labels, hitter, video, hit, time_s.
+- **Next:** Colab notebook to train a 1D CNN or GRU, then load the weights locally and add a stroke column to the v1 output.
 
 ## Later: v3, ball tracking and line calls
 - Fine-tune TrackNet on our footage, detect court keypoints, compute a homography, and project bounces onto the court.
