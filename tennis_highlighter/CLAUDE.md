@@ -19,6 +19,7 @@ Repo: https://github.com/kevinandhwaboon/tennis-highlighter
 - `poses.py`: v2, cuts a 640px clip around each hit and runs YOLO pose. Writes `data/<video>/` (`python poses.py VIDEO`)
 - `strokes.py`: v2, label list, hitter tracking, feature normalisation, dataset export (`python strokes.py`, which writes `data/dataset.npz`)
 - `label_app.py`: v2 Gradio labelling tool (`python label_app.py`, port 7861)
+- `train_strokes.ipynb`: v2 training notebook (Colab or local). Reads `dataset.npz` and writes `stroke_model.pt`
 - `docs/PLAN.md`: roadmap and findings
 
 ## v1 (done): cut dead time, audio only
@@ -50,7 +51,12 @@ Labelling tool is built; next is labelling a few hundred hits, then training.
   **The far player is mirrored** (flip x and swap left/right keypoints), because they face the camera.
   Left-handers aren't handled yet. They'll need a per-player flip.
 - **Dataset:** `data/dataset.npz` with X (N, 31, 53), y, labels, hitter, video, hit, time_s.
-- **Next:** Colab notebook to train a 1D CNN or GRU, then load the weights locally and add a stroke column to the v1 output.
+- **Training** (`train_strokes.ipynb`): a small 1D CNN (2 conv layers of 64, about 40k params) with class weights and time-shift/noise augmentation.
+  Classes with no examples are dropped. It is evaluated with 5-fold cross-validation grouped by 30 s video blocks, so neighbouring hits never sit on both sides of a split.
+  Then it trains on everything and saves `stroke_model.pt` (state_dict, labels, mean/std; loadable with `weights_only=True`). Training takes about 40 s on the Mac CPU.
+- **First result** (IMG_0222, practice rallying, 233 near-player hits: 168 forehand, 49 backhand, 16 not_a_hit, no serves or volleys): 95% cross-validated accuracy, against 72% for always guessing forehand.
+  Forehand and backhand are 97–98% F1. not_a_hit is 0.71 F1, but with only 16 examples that score is noisy.
+- **Next:** a local `classify.py` that loads `stroke_model.pt` and adds a stroke column to the v1 output; label match footage to add serves and volleys.
 
 ## Later: v3, ball tracking and line calls
 - Fine-tune TrackNet on our footage, detect court keypoints, compute a homography, and project bounces onto the court.
