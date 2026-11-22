@@ -39,6 +39,9 @@ POSE_FRAME_STEP = 2     # run pose on every Nth frame (30 fps -> 15 pose fps)
 POSE_WINDOW = 1.0       # s either side of the hit used for the classifier input
 MAX_PEOPLE = 4          # keep up to this many people per frame (largest boxes)
 NEAR_STRENGTH = 9.0     # audio peak >= this (x median) -> guess near player hit it
+NEAR_ONLY = True        # label_app only asks about the near (visible) player's hits
+NEAR_SWING = 2.0        # near player's peak wrist speed (body heights/s) near the hit to count as their swing
+SWING_WINDOW = 0.35     # s either side of the hit to look for that swing
 
 
 def detect_hits(video, return_strength=False):

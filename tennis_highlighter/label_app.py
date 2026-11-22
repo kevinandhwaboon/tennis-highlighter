@@ -8,18 +8,20 @@ Labels are saved to data/<video>/labels.csv after every click.
 """
 import csv, datetime, glob, inspect, os
 import gradio as gr
+import highlighter as hl
 import poses, strokes
 
 DATA = os.path.abspath("data")
 BUTTONS = [("forehand", "Forehand", "F"), ("backhand", "Backhand", "B"), ("serve", "Serve", "S"),
            ("volley", "Volley", "V"), ("overhead", "Overhead", "O"), ("not_a_hit", "Not a hit", "X"),
-           ("offscreen", "Hitter off-screen", "U")]  # excluded from training
+           ("opponent", "Opponent hit it", "U")]  # excluded from training
 FIELDS = ["hit", "time_s", "strength", "label", "hitter", "labelled_at"]
+TOTALS = {}  # session dir -> number of hits before the near-only filter
 
 KEYS_JS = """
 <script>
 (() => {
-  const keys = {f:'forehand', b:'backhand', s:'serve', v:'volley', o:'overhead', x:'not_a_hit', u:'offscreen'};
+  const keys = {f:'forehand', b:'backhand', s:'serve', v:'volley', o:'overhead', x:'not_a_hit', u:'opponent'};
   const click = id => { const el = document.getElementById(id); if (el) el.click(); };
   window.tennisSlow = false;
   document.addEventListener('keydown', e => {
@@ -55,6 +57,7 @@ def load_hits(sd):
     with open(os.path.join(sd, "hits.csv"), newline="") as fh:
         hits = [dict(r, hit=int(r["hit"])) for r in csv.DictReader(fh)]
     labels = strokes.read_labels(sd)
+    TOTALS[sd] = len(hits)
     for h in hits:
         lab = labels.get(h["hit"])
         # only reuse a label if it belongs to the same moment (settings may have changed)
@@ -62,14 +65,23 @@ def load_hits(sd):
             h["label"], h["hitter"] = lab["label"], lab["hitter"] or h["hitter_guess"]
         else:
             h["label"], h["hitter"] = "", h["hitter_guess"]
+    if hl.NEAR_ONLY:
+        # only ask about hits where the near player is swinging (keep anything already labelled)
+        for h in hits:
+            h["swing"] = round(strokes.swing_score(os.path.join(sd, "poses", f"hit_{h['hit']:04d}.npz")), 1)
+            h["hitter"] = "near"
+        hits = [h for h in hits if h["swing"] >= hl.NEAR_SWING or h["label"]]
     return hits
 
 
 def save_labels(sd, hits):
+    # merge with what's on disk so labels of hits not shown (filtered out) are kept
+    rows = strokes.read_labels(sd)
+    rows.update({h["hit"]: h for h in hits if h["label"]})
     tmp = os.path.join(sd, "labels.csv.tmp")
     with open(tmp, "w", newline="") as fh:
         w = csv.DictWriter(fh, FIELDS, extrasaction="ignore"); w.writeheader()
-        w.writerows(h for h in hits if h["label"])
+        w.writerows(rows[k] for k in sorted(rows))
     os.replace(tmp, os.path.join(sd, "labels.csv"))
 
 
@@ -92,8 +104,12 @@ def show(sd, hits, i):
     h = hits[i]
     name = f"hit_{h['hit']:04d}"
     cur = next((n for k, n, _ in BUTTONS if k == h["label"]), "—")
-    info = (f"### Hit {i + 1} of {len(hits)} · at {float(h['time_s']):.1f}s · "
-            f"loudness {h['strength']}× (guess: {h['hitter_guess']} player)\n"
+    if hl.NEAR_ONLY:
+        who = (f"near player's arm speed {h['swing']} · showing {len(hits)} of "
+               f"{TOTALS.get(sd, len(hits))} hits (near player swinging)")
+    else:
+        who = f"loudness {h['strength']}× (guess: {h['hitter_guess']} player)"
+    info = (f"### Hit {i + 1} of {len(hits)} · at {float(h['time_s']):.1f}s · {who}\n"
             f"Current label: **{cur}**\n\n{counts_md(hits)}")
     return (info, os.path.join(sd, "clips", name + ".mp4"),
             os.path.join(sd, "frames", name + ".jpg"), h["hitter"])
@@ -186,7 +202,8 @@ with gr.Blocks(**_blocks_kw) as demo:
         clip = gr.Video(label="Hit clip (loops) · Space = slow motion", autoplay=True, loop=True,
                         elem_id="clip", height=360, scale=3)
         frame = gr.Image(label="Moment of the hit, with detected skeletons", height=360, scale=2)
-    hitter = gr.Radio(strokes.HITTERS, value="near", label="Who hit it? (keys 1 / 2)", elem_id="hitter")
+    hitter = gr.Radio(strokes.HITTERS, value="near", label="Who hit it? (keys 1 / 2)", elem_id="hitter",
+                      visible=not hl.NEAR_ONLY)
     with gr.Row():
         label_btns = [gr.Button(f"{name} ({k})", elem_id=f"btn-{key}",
                                 variant="stop" if key == "not_a_hit" else "secondary")
@@ -196,7 +213,7 @@ with gr.Blocks(**_blocks_kw) as demo:
         unl_btn = gr.Button("Next unlabelled")
         next_btn = gr.Button("Next / skip →", elem_id="btn-next")
     gr.Markdown("Keys: **F** forehand · **B** backhand · **S** serve · **V** volley · **O** overhead · "
-                "**X** not a hit · **U** hitter off-screen (skipped in training) · **1/2** near/far · **← →** move · **Space** slow motion. "
+                "**X** not a hit (no ball struck) · **U** opponent hit it, not the near player (skipped in training) · **← →** move · **Space** slow motion. "
                 "Each label saves immediately.")
     with gr.Accordion("3 · Build training set", open=False):
         export_btn = gr.Button("Build training set (data/dataset.npz)")

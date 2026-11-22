@@ -41,8 +41,10 @@ Labelling tool is built; next is labelling a few hundred hits, then training.
 - **Hitter guess:** audio peak of 9× median or more means near player, otherwise far. The labeller corrects it with keys 1/2.
 - **First real-footage run** (`trimmed.mov`, 36 hits): about 5.3 s per hit on the Intel Mac (190 s for 36 hits, plus audio and a one-time model download).
   Exactly one person is detected per frame, and it is the **near** player (back to the camera, makes the loud hits). The far player is off-screen.
-  Hits by an off-screen player get the label `offscreen` (key U), which `export_dataset` skips, so the visible player's skeleton isn't trained under the wrong stroke.
-  Quiet near-player serves (for example 7.3×) are guessed `far`, so check the near/far guess on serves.
+- **Near player only** (`NEAR_ONLY`): we only classify the near player's strokes. Loudness is a poor guide to who hit it (many near swings are only 6–8×).
+  Instead `strokes.swing_score` measures the near player's peak wrist speed within ±0.35 s of the hit, in body heights per second.
+  Near swings score about 2.5–9 and non-swings under 1.7, so label_app only shows hits scoring at least `NEAR_SWING` = 2.0 (244 of 393 on IMG_0222).
+  The near/far control is hidden. Key U = `opponent` (the near player didn't hit it), which `export_dataset` skips but could later become an "opponent hit" class.
 - **Features** (`strokes.features`): follow the hitter (near = box bottom lowest in the frame at the hit, far = highest, then nearest box centre frame to frame).
   Resample to ±1.0 s at 15 fps (31 steps). Per step, use keypoints relative to mid-hip divided by torso length, plus 17 confidences, plus hip displacement from the hit frame: 53 features in total.
   **The far player is mirrored** (flip x and swap left/right keypoints), because they face the camera.

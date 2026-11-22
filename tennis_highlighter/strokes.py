@@ -10,13 +10,14 @@ import numpy as np
 import highlighter as hl
 
 LABELS = ["forehand", "backhand", "serve", "volley", "overhead", "not_a_hit"]
-# label_app also has "offscreen" (hitter not in frame, no usable skeleton); it is
-# deliberately not in LABELS, so export_dataset skips those hits.
+# label_app also has "opponent" (the near player didn't hit it); it is deliberately
+# not in LABELS, so export_dataset skips those hits. Could become its own class later.
 HITTERS = ["near", "far"]
 POSE_FPS = 30.0 / hl.POSE_FRAME_STEP
 GRID = np.round(np.arange(-hl.POSE_WINDOW, hl.POSE_WINDOW + 1e-6, 1 / POSE_FPS), 4)  # e.g. 31 steps
-# COCO keypoints: 5/6 shoulders, 11/12 hips
+# COCO keypoints: 5/6 shoulders, 9/10 wrists, 11/12 hips
 L_SH, R_SH, L_HIP, R_HIP = 5, 6, 11, 12
+L_WRIST, R_WRIST = 9, 10
 FLIP = [0, 2, 1, 4, 3, 6, 5, 8, 7, 10, 9, 12, 11, 14, 13, 16, 15]  # left<->right keypoint swap
 N_FEATURES = 17 * 3 + 2
 
@@ -89,6 +90,29 @@ def features(t, trk_k, trk_b, hitter):
         out[g, 34:51] = k[f, :, 2]
         out[g, 51:53] = (hip[f] - hip[f_hit]) / scale
     return out
+
+
+def swing_score(npz_path):
+    """Peak wrist speed of the near player within SWING_WINDOW of the hit, in body
+    heights per second. Separates the near player's own swings (mostly 2.5-9) from
+    hits where they're standing or just moving (mostly under 1.7) far better than
+    loudness does. Used by label_app to show only near-player hits."""
+    d = np.load(npz_path)
+    t = d["t"]
+    k, b = select_track(d["kpts"], d["boxes"], t, "near")
+    ok = b[:, 4] > 0
+    if ok.sum() < 2:
+        return 0.0
+    height = max(float(np.median(b[ok, 3] - b[ok, 1])), 1.0)
+    best = 0.0
+    for f in range(1, len(t)):
+        if not (ok[f] and ok[f - 1]) or abs(t[f]) > hl.SWING_WINDOW:
+            continue
+        for w in (L_WRIST, R_WRIST):
+            if min(k[f, w, 2], k[f - 1, w, 2]) > 0.3:
+                v = np.linalg.norm(k[f, w, :2] - k[f - 1, w, :2]) / height / (t[f] - t[f - 1])
+                best = max(best, float(v))
+    return best
 
 
 def hit_features(npz_path, hitter):
