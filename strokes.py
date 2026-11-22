@@ -1,7 +1,7 @@
 """v2 shared stroke code: labels, picking the hitter's skeleton, features, dataset export.
 
-Used by label_app.py (export) and, later, by the local classifier, so training in
-Colab and inference on the Mac see exactly the same features.
+Used by label_app.py (export), train_strokes.ipynb (model definition) and classify.py,
+so training and inference on the Mac see exactly the same features and model.
 
 Usage:  python strokes.py [--data data]   -> data/dataset.npz
 """
@@ -119,6 +119,33 @@ def hit_features(npz_path, hitter):
     d = np.load(npz_path)
     trk_k, trk_b = select_track(d["kpts"], d["boxes"], d["t"], hitter)
     return features(d["t"], trk_k, trk_b, hitter)
+
+
+def make_model(n_features, n_classes):
+    """The classifier trained in train_strokes.ipynb (arch "conv1d-64x2-v1").
+    Keep this identical to make_model in the notebook, or saved weights won't load."""
+    import torch.nn as nn
+    return nn.Sequential(
+        nn.Conv1d(n_features, 64, 5, padding=2), nn.BatchNorm1d(64), nn.ReLU(), nn.Dropout(0.2),
+        nn.Conv1d(64, 64, 5, padding=2), nn.BatchNorm1d(64), nn.ReLU(), nn.Dropout(0.2),
+        nn.AdaptiveAvgPool1d(1), nn.Flatten(), nn.Linear(64, n_classes))
+
+
+def load_classifier(path):
+    """Load stroke_model.pt. Returns predict(X: (N, len(GRID), N_FEATURES)) -> (labels, probs)."""
+    import torch
+    ck = torch.load(path, map_location="cpu", weights_only=True)
+    if ck.get("arch") != "conv1d-64x2-v1":
+        raise ValueError(f"{path} has arch {ck.get('arch')!r}; update strokes.make_model to match")
+    model = make_model(ck["n_features"], len(ck["labels"]))
+    model.load_state_dict(ck["state_dict"]); model.eval()
+    mean, std = ck["mean"].numpy(), ck["std"].numpy()
+
+    def predict(X):
+        with torch.no_grad():
+            x = torch.tensor((np.asarray(X, np.float32) - mean) / std).transpose(1, 2)
+            return list(ck["labels"]), model(x).softmax(1).numpy()
+    return predict
 
 
 def read_labels(session):

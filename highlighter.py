@@ -2,6 +2,8 @@
 
 Usage:  python highlighter.py INPUT_VIDEO [--out OUTDIR]
 Outputs: OUTDIR/points/point_XX.mp4, OUTDIR/highlights.mp4, OUTDIR/points.csv
+With --strokes (v2, needs stroke_model.pt): also OUTDIR/hits.csv with the near player's
+stroke for every hit, and stroke counts per point in points.csv. See classify.py.
 """
 import argparse, csv, os, shutil, subprocess, tempfile
 import numpy as np, librosa, scipy.signal as ss
@@ -42,6 +44,7 @@ NEAR_STRENGTH = 9.0     # audio peak >= this (x median) -> guess near player hit
 NEAR_ONLY = True        # label_app only asks about the near (visible) player's hits
 NEAR_SWING = 2.0        # near player's peak wrist speed (body heights/s) near the hit to count as their swing
 SWING_WINDOW = 0.35     # s either side of the hit to look for that swing
+STROKE_MODEL = "stroke_model.pt"  # weights from train_strokes.ipynb, used by classify.py
 
 
 def detect_hits(video, return_strength=False):
@@ -81,7 +84,8 @@ def group_points(hits, duration):
     return out
 
 
-def export(video, points, outdir):
+def export(video, points, outdir, point_strokes=None):
+    """point_strokes: optional {column: [value per point]} added to points.csv (v2)."""
     pdir = os.path.join(outdir, "points"); os.makedirs(pdir, exist_ok=True)
     files = []
     for i, p in enumerate(points, 1):
@@ -97,22 +101,34 @@ def export(video, points, outdir):
                     "-c", "copy", os.path.join(outdir, "highlights.mp4")], check=True)
     os.remove(lst)
     with open(os.path.join(outdir, "points.csv"), "w", newline="") as fh:
-        w = csv.writer(fh); w.writerow(["point", "start_s", "end_s", "length_s", "hits"])
+        extra = point_strokes or {}
+        w = csv.writer(fh); w.writerow(["point", "start_s", "end_s", "length_s", "hits"] + list(extra))
         for i, p in enumerate(points, 1):
-            w.writerow([i, round(p["start"], 2), round(p["end"], 2), round(p["end"] - p["start"], 1), p["hits"]])
+            w.writerow([i, round(p["start"], 2), round(p["end"], 2), round(p["end"] - p["start"], 1), p["hits"]]
+                       + [v[i - 1] for v in extra.values()])
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("video"); ap.add_argument("--out", default="output")
+    ap.add_argument("--strokes", action="store_true",
+                    help="v2: also label the near player's strokes (runs pose extraction, ~5 s per hit)")
     a = ap.parse_args()
     hits, dur = detect_hits(a.video)
     pts = group_points(hits, dur)
+    point_strokes = None
+    if a.strokes:
+        import classify
+        rows = classify.classify(a.video)
+        point_strokes = classify.per_point(rows, pts)
+        os.makedirs(a.out, exist_ok=True)
+        classify.write_hits(rows, os.path.join(a.out, "hits.csv"), pts)
     kept = sum(p["end"] - p["start"] for p in pts)
     print(f"{len(hits)} hits -> {len(pts)} points; kept {kept:.0f}s of {dur:.0f}s ({100*kept/dur:.0f}%)")
     for i, p in enumerate(pts, 1):
-        print(f"  point {i:2d}: {p['start']:6.1f}-{p['end']:6.1f}s  ({p['hits']} hits)")
-    export(a.video, pts, a.out)
+        seq = f"  {point_strokes['near_strokes'][i - 1]}" if point_strokes else ""
+        print(f"  point {i:2d}: {p['start']:6.1f}-{p['end']:6.1f}s  ({p['hits']} hits){seq}")
+    export(a.video, pts, a.out, point_strokes)
     print("Saved to", os.path.abspath(a.out))
 
 

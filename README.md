@@ -53,6 +53,12 @@ python label_app.py
 
 Clips and poses can also be extracted without the browser: `python poses.py ../trimmed.mov`.
 
+4. Train the classifier: open `train_strokes.ipynb` (Colab, or locally with `pip install notebook` and then
+   `jupyter notebook train_strokes.ipynb`) and run all cells. It saves `stroke_model.pt` here.
+5. Label strokes in any video: `python highlighter.py VIDEO --out DIR --strokes` adds each point's
+   near-player strokes (e.g. `F F B F`) to `points.csv` and writes `hits.csv`. `python classify.py VIDEO`
+   does only the labelling.
+
 ## Tuning
 
 - **Missing points / quiet hits not caught** → lower the hit sensitivity threshold.

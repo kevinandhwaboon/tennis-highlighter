@@ -20,6 +20,8 @@ Repo: https://github.com/kevinandhwaboon/tennis-highlighter
 - `strokes.py`: v2, label list, hitter tracking, feature normalisation, dataset export (`python strokes.py`, which writes `data/dataset.npz`)
 - `label_app.py`: v2 Gradio labelling tool (`python label_app.py`, port 7861)
 - `train_strokes.ipynb`: v2 training notebook (Colab or local). Reads `dataset.npz` and writes `stroke_model.pt`
+- `classify.py`: v2, labels every hit with the near player's stroke using `stroke_model.pt`, and writes `data/<video>/strokes.csv` (`python classify.py VIDEO`).
+  `python highlighter.py VIDEO --out DIR --strokes` does the same and adds stroke counts and a sequence per point to `points.csv`, plus `DIR/hits.csv`.
 - `docs/PLAN.md`: roadmap and findings
 
 ## v1 (done): cut dead time, audio only
@@ -56,7 +58,10 @@ Labelling tool is built; next is labelling a few hundred hits, then training.
   Then it trains on everything and saves `stroke_model.pt` (state_dict, labels, mean/std; loadable with `weights_only=True`). Training takes about 40 s on the Mac CPU.
 - **First result** (IMG_0222, practice rallying, 233 near-player hits: 168 forehand, 49 backhand, 16 not_a_hit, no serves or volleys): 95% cross-validated accuracy, against 72% for always guessing forehand.
   Forehand and backhand are 97–98% F1. not_a_hit is 0.71 F1, but with only 16 examples that score is noisy.
-- **Next:** a local `classify.py` that loads `stroke_model.pt` and adds a stroke column to the v1 output; label match footage to add serves and volleys.
+- **Inference** (`classify.py`): swing score < `NEAR_SWING` gives `opponent`, the near player missing in most frames gives `unknown`, and otherwise the model predicts with a confidence.
+  `strokes.make_model` must stay identical to the notebook's `make_model` (checked through the `arch` string in the .pt).
+  With cached poses it takes about 50 s for 393 hits. On a new video, pose extraction (about 5 s per hit) dominates.
+- **Next:** label match footage to add serves and volleys, then retrain. Until then, serves get forced into forehand, backhand or not_a_hit.
 
 ## Later: v3, ball tracking and line calls
 - Fine-tune TrackNet on our footage, detect court keypoints, compute a homography, and project bounces onto the court.
