@@ -12,13 +12,14 @@ import poses, strokes
 
 DATA = os.path.abspath("data")
 BUTTONS = [("forehand", "Forehand", "F"), ("backhand", "Backhand", "B"), ("serve", "Serve", "S"),
-           ("volley", "Volley", "V"), ("overhead", "Overhead", "O"), ("not_a_hit", "Not a hit", "X")]
+           ("volley", "Volley", "V"), ("overhead", "Overhead", "O"), ("not_a_hit", "Not a hit", "X"),
+           ("offscreen", "Hitter off-screen", "U")]  # excluded from training
 FIELDS = ["hit", "time_s", "strength", "label", "hitter", "labelled_at"]
 
 KEYS_JS = """
 <script>
 (() => {
-  const keys = {f:'forehand', b:'backhand', s:'serve', v:'volley', o:'overhead', x:'not_a_hit'};
+  const keys = {f:'forehand', b:'backhand', s:'serve', v:'volley', o:'overhead', x:'not_a_hit', u:'offscreen'};
   const click = id => { const el = document.getElementById(id); if (el) el.click(); };
   window.tennisSlow = false;
   document.addEventListener('keydown', e => {
@@ -195,7 +196,7 @@ with gr.Blocks(**_blocks_kw) as demo:
         unl_btn = gr.Button("Next unlabelled")
         next_btn = gr.Button("Next / skip →", elem_id="btn-next")
     gr.Markdown("Keys: **F** forehand · **B** backhand · **S** serve · **V** volley · **O** overhead · "
-                "**X** not a hit · **1/2** near/far · **← →** move · **Space** slow motion. "
+                "**X** not a hit · **U** hitter off-screen (skipped in training) · **1/2** near/far · **← →** move · **Space** slow motion. "
                 "Each label saves immediately.")
     with gr.Accordion("3 · Build training set", open=False):
         export_btn = gr.Button("Build training set (data/dataset.npz)")

@@ -3,3 +3,4 @@ scipy
 librosa
 gradio
 ultralytics   # v2: YOLO pose (pulls in torch + opencv, CPU is fine)
+imageio-ffmpeg   # bundled ffmpeg binary, used when ffmpeg is not on PATH

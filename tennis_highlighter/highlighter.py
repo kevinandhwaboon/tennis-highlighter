@@ -3,8 +3,23 @@
 Usage:  python highlighter.py INPUT_VIDEO [--out OUTDIR]
 Outputs: OUTDIR/points/point_XX.mp4, OUTDIR/highlights.mp4, OUTDIR/points.csv
 """
-import argparse, csv, os, subprocess, tempfile
+import argparse, csv, os, shutil, subprocess, tempfile
 import numpy as np, librosa, scipy.signal as ss
+
+
+def _find_ffmpeg():
+    """System ffmpeg if installed, else the static binary from the imageio-ffmpeg pip package."""
+    exe = shutil.which("ffmpeg")
+    if exe:
+        return exe
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except ImportError:
+        raise RuntimeError("ffmpeg not found: `pip install imageio-ffmpeg` or `brew install ffmpeg`")
+
+
+FFMPEG = _find_ffmpeg()
 
 # ---- tunable settings ----
 BAND = (1500, 6000)     # Hz range where the racket "pop" lives
@@ -31,7 +46,7 @@ def detect_hits(video, return_strength=False):
     (hit_times, strengths, duration), strength = peak height in x median."""
     with tempfile.TemporaryDirectory() as td:
         wav = os.path.join(td, "a.wav")
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", video, "-vn", "-ac", "1",
+        subprocess.run([FFMPEG, "-v", "error", "-y", "-i", video, "-vn", "-ac", "1",
                         "-ar", "22050", wav], check=True)
         y, sr = librosa.load(wav, sr=22050)
     b, a = ss.butter(4, BAND, btype="band", fs=sr)
@@ -68,14 +83,14 @@ def export(video, points, outdir):
     files = []
     for i, p in enumerate(points, 1):
         f = os.path.join(pdir, f"point_{i:02d}.mp4")
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{p['start']:.2f}", "-to", f"{p['end']:.2f}",
+        subprocess.run([FFMPEG, "-v", "error", "-y", "-ss", f"{p['start']:.2f}", "-to", f"{p['end']:.2f}",
                         "-i", video, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
                         "-c:a", "aac", "-movflags", "+faststart", f], check=True)
         files.append(f)
     lst = os.path.join(outdir, "list.txt")
     with open(lst, "w") as fh:
         fh.writelines(f"file '{os.path.abspath(f)}'\n" for f in files)
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst,
+    subprocess.run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst,
                     "-c", "copy", os.path.join(outdir, "highlights.mp4")], check=True)
     os.remove(lst)
     with open(os.path.join(outdir, "points.csv"), "w", newline="") as fh:

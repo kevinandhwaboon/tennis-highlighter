@@ -31,7 +31,7 @@ def load_model():
 
 def cut_clip(video, t, out):
     start = max(0.0, t - hl.CLIP_BEFORE)
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{start:.3f}", "-i", video,
+    subprocess.run([hl.FFMPEG, "-v", "error", "-y", "-ss", f"{start:.3f}", "-i", video,
                     "-t", f"{t + hl.CLIP_AFTER - start:.3f}", "-vf", f"scale={hl.CLIP_WIDTH}:-2",
                     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26", "-pix_fmt", "yuv420p",
                     "-c:a", "aac", "-movflags", "+faststart", out], check=True)

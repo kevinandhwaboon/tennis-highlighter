@@ -39,6 +39,10 @@ Labelling tool is built; next is labelling a few hundred hits, then training.
 - **Labels:** `data/<video>/labels.csv` with columns hit, time_s, strength, label, hitter (near/far), labelled_at. Saved after every click.
   Labels are matched to hits by time, so changing the detection settings doesn't attach labels to the wrong hit.
 - **Hitter guess:** audio peak of 9× median or more means near player, otherwise far. The labeller corrects it with keys 1/2.
+- **First real-footage run** (`trimmed.mov`, 36 hits): about 5.3 s per hit on the Intel Mac (190 s for 36 hits, plus audio and a one-time model download).
+  Exactly one person is detected per frame, and it is the **near** player (back to the camera, makes the loud hits). The far player is off-screen.
+  Hits by an off-screen player get the label `offscreen` (key U), which `export_dataset` skips, so the visible player's skeleton isn't trained under the wrong stroke.
+  Quiet near-player serves (for example 7.3×) are guessed `far`, so check the near/far guess on serves.
 - **Features** (`strokes.features`): follow the hitter (near = box bottom lowest in the frame at the hit, far = highest, then nearest box centre frame to frame).
   Resample to ±1.0 s at 15 fps (31 steps). Per step, use keypoints relative to mid-hip divided by torso length, plus 17 confidences, plus hip displacement from the hit frame: 53 features in total.
   **The far player is mirrored** (flip x and swap left/right keypoints), because they face the camera.
@@ -50,7 +54,7 @@ Labelling tool is built; next is labelling a few hundred hits, then training.
 - Fine-tune TrackNet on our footage, detect court keypoints, compute a homography, and project bounces onto the court.
 - Report "clearly in / clearly out / too close to call" based on estimated error.
 - **Needs a raised camera behind the baseline with the court lines visible.**
-  The current sample was filmed from ground level into the sun: silhouettes, no lines, and only the far player in frame. Line calls won't work from that setup.
+  The current sample was filmed from ground level into the sun: silhouettes, no lines, and only the near player in frame. Line calls won't work from that setup.
 
 ## Conventions
 - Never commit video files (`*.mov`, `*.mp4`) or model weights over 50 MB. See `.gitignore`.

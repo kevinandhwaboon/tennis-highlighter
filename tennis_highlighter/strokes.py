@@ -10,6 +10,8 @@ import numpy as np
 import highlighter as hl
 
 LABELS = ["forehand", "backhand", "serve", "volley", "overhead", "not_a_hit"]
+# label_app also has "offscreen" (hitter not in frame, no usable skeleton); it is
+# deliberately not in LABELS, so export_dataset skips those hits.
 HITTERS = ["near", "far"]
 POSE_FPS = 30.0 / hl.POSE_FRAME_STEP
 GRID = np.round(np.arange(-hl.POSE_WINDOW, hl.POSE_WINDOW + 1e-6, 1 / POSE_FPS), 4)  # e.g. 31 steps
