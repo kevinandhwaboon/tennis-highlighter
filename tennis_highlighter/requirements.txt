@@ -4,3 +4,5 @@ librosa
 gradio
 ultralytics   # v2: YOLO pose (pulls in torch + opencv, CPU is fine)
 imageio-ffmpeg   # bundled ffmpeg binary, used when ffmpeg is not on PATH
+huggingface_hub<1.0   # gradio 4.x (the last gradio for Python 3.9) imports HfFolder, removed in 1.0
+pydantic<2.11   # gradio 4.x API-schema code crashes on pydantic 2.11+
