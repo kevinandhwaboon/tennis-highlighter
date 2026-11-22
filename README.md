@@ -12,7 +12,7 @@ Open Terminal and run:
 brew install python ffmpeg
 
 # 2. Set up the app
-cd ~/Desktop/tennis/tennis_highlighter
+cd ~/tennis-highlighter
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -21,7 +21,7 @@ pip install -r requirements.txt
 ## Run it
 
 ```bash
-cd ~/Desktop/tennis/tennis_highlighter
+cd ~/tennis-highlighter
 source .venv/bin/activate
 python app.py
 ```
